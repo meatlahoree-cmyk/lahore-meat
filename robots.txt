@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.lahoremeat.com/sitemap.xml
+Sitemap: https://lahoremeat.com/sitemap.xml

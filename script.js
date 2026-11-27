@@ -8,6 +8,21 @@ const LINKEDIN = 'https://www.linkedin.com/company/lahore-meat/home/';
 const TIKTOK = 'https://www.tiktok.com/@lahoremeat?lang=en';
 const PINTEREST = 'https://www.pinterest.com/meatlahoree/';
 const YOUTUBE = 'https://www.youtube.com/@meatlahore';
+/* Bank details shown to customer after placing an order */
+const BANK = { title: 'Mushtaq And Three Sons', number: '2792423342826', bank: 'UBL Bank' };
+/* Cut options (mutton & beef) */
+const CUTS = [
+  ['', 'Regular (koi special cut nahi)'],
+  ['Karahi Cut', 'Karahi Cut'],
+  ['Curry / Salan Cut', 'Curry / Salan Cut'],
+  ['Biryani / Pulao Cut', 'Biryani / Pulao Cut'],
+  ['Choti Boti (Small Pieces)', 'Choti Boti (Small Pieces)'],
+  ['Bari Boti (Large Pieces)', 'Bari Boti (Large Pieces)'],
+  ['Chops / Steaks', 'Chops / Steaks'],
+  ['Sabut (Whole Piece)', 'Sabut (Whole Piece)']
+];
+const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const cutOptions = sel => CUTS.map(([v, l]) => `<option value="${esc(v)}"${v === sel ? ' selected' : ''}>${esc(l)}</option>`).join('');
 const SHOPS = [
   'Shop 1: Al Latif Center, 40 Main Boulevard Gulberg, Block D1, Gulberg III',
   'Shop 2: DHA Phase 3',
@@ -38,26 +53,45 @@ const PRODUCTS = [
   { id: 'c1', cat: 'chicken', name: 'Chicken Burger Patty', price: 650, img: 'chicken-bargar-petty.jpg', unit: 'pack', note: '6 pieces (1 patty = 80–100 g)' },
   { id: 'c2', cat: 'chicken', name: 'Chicken Nuggets', price: 650, img: 'chicken-nuggets.jpg', unit: 'pack', note: 'Half kg pack' },
   // Aqiqah
-  { id: 'a1', cat: 'aqiqah', name: 'Aqiqah Bakra 12–14 kg', price: 55000, img: 'aqiqah-bakra12-14kg.png', unit: 'bakra', note: 'Weight: 12–14 kg' },
-  { id: 'a2', cat: 'aqiqah', name: 'Aqiqah Bakra 14–15 kg', price: 60000, img: 'aqiqah-bakra14-15kg.png', unit: 'bakra', note: 'Weight: 14–15 kg' },
-  { id: 'a3', cat: 'aqiqah', name: 'Aqiqah Bakra 15–16 kg', price: 65000, img: 'aqiqah-bakra15-16kg.png', unit: 'bakra', note: 'Weight: 15–16 kg' }
+  { id: 'a1', cat: 'aqiqah', name: 'Aqiqah Bakra 12–14 kg', price: 55000, img: 'aqiqah-bakra12-14kg.jpg', unit: 'bakra', note: 'Weight: 12–14 kg' },
+  { id: 'a2', cat: 'aqiqah', name: 'Aqiqah Bakra 14–15 kg', price: 60000, img: 'aqiqah-bakra14-15kg.jpg', unit: 'bakra', note: 'Weight: 14–15 kg' },
+  { id: 'a3', cat: 'aqiqah', name: 'Aqiqah Bakra 15–16 kg', price: 65000, img: 'aqiqah-bakra15-16kg.jpg', unit: 'bakra', note: 'Weight: 15–16 kg' }
 ];
 const byId = id => PRODUCTS.find(p => p.id === id);
 const isKg = p => !p.unit;
+const hasCuts = p => (p.cat === 'mutton' || p.cat === 'beef') && !/Mince/i.test(p.name);
 const step = p => (isKg(p) ? 0.5 : 1);
 const fmt = n => 'Rs. ' + Number(n).toLocaleString('en-PK');
 const qtyLabel = (p, q) => (isKg(p) ? q + ' kg' : q + ' ' + p.unit + (q > 1 ? 's' : ''));
 
 /* ---------- Cart (saved in browser) ---------- */
+/* cart = { 'm1|Karahi Cut': { id:'m1', cut:'Karahi Cut', qty:1.5 } } – same item with different cuts = separate lines */
 let cart = {};
-try { cart = JSON.parse(localStorage.getItem('lm_cart')) || {}; } catch (e) { cart = {}; }
-const saveCart = () => { try { localStorage.setItem('lm_cart', JSON.stringify(cart)); } catch (e) {} updateCart(); };
+try { cart = JSON.parse(localStorage.getItem('lm_cart2')) || {}; } catch (e) { cart = {}; }
+const saveCart = () => { try { localStorage.setItem('lm_cart2', JSON.stringify(cart)); } catch (e) {} updateCart(); };
+const lineKey = (id, cut) => id + '|' + (cut || '');
+const lines = () => Object.entries(cart).filter(([, l]) => byId(l.id));
+
+function addToCart(id, qty, cut) {
+  const k = lineKey(id, cut);
+  if (cart[k]) cart[k].qty = +(cart[k].qty + qty).toFixed(1);
+  else cart[k] = { id, cut: cut || '', qty };
+  saveCart();
+  showAddPopup(byId(id), cut);
+}
+
+function showAddPopup(p, cut) {
+  const pop = document.getElementById('addPopup'); if (!pop) return;
+  document.getElementById('apText').innerHTML = `<b>${esc(p.name)}</b> cart mein add ho gaya${cut ? ` <small>(${esc(cut)})</small>` : ''}`;
+  pop.classList.add('open');
+}
+const hideAddPopup = () => { const pop = document.getElementById('addPopup'); if (pop) pop.classList.remove('open'); };
 
 function cartTotals() {
   let sub = 0, needDelivery = false;
-  Object.entries(cart).forEach(([id, q]) => {
-    const p = byId(id); if (!p) return;
-    sub += p.price * q;
+  lines().forEach(([, l]) => {
+    const p = byId(l.id);
+    sub += p.price * l.qty;
     if (p.cat !== 'aqiqah') needDelivery = true;
   });
   const delivery = needDelivery ? DELIVERY : 0;
@@ -67,40 +101,116 @@ function cartTotals() {
 function updateCart() {
   const count = document.getElementById('cartCount');
   const box = document.getElementById('cartItems');
-  const ids = Object.keys(cart).filter(id => byId(id));
-  if (count) count.textContent = ids.length;
+  const ls = lines();
+  if (count) count.textContent = ls.length;
   if (!box) return;
-  box.innerHTML = ids.length ? ids.map(id => {
-    const p = byId(id);
-    return `<div class="ci"><div>${p.name}<small>${qtyLabel(p, cart[id])} × ${fmt(p.price)}</small></div>
-      <div style="text-align:right">${fmt(p.price * cart[id])}<br><button onclick="removeItem('${id}')">Remove</button></div></div>`;
+  box.innerHTML = ls.length ? ls.map(([k, l]) => {
+    const p = byId(l.id);
+    return `<div class="ci"><div class="ci-main">
+        <strong>${p.name}</strong>
+        <small>${qtyLabel(p, l.qty)} × ${fmt(p.price)}</small>
+        ${hasCuts(p) ? `<label class="cut-lbl">Cut (kata): <select class="cut-sel" data-k="${esc(k)}">${cutOptions(l.cut)}</select></label>` : ''}
+        <div class="ci-qty"><button type="button" data-q="-1" data-k="${esc(k)}" aria-label="Kam">−</button><span>${qtyLabel(p, l.qty)}</span><button type="button" data-q="1" data-k="${esc(k)}" aria-label="Zyada">+</button></div>
+      </div>
+      <div class="ci-side">${fmt(p.price * l.qty)}<br><button type="button" data-rm="${esc(k)}">Remove</button></div></div>`;
   }).join('') : '<p class="empty">Aap ka cart khali hai.</p>';
+  box.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => removeItem(b.dataset.rm));
+  box.querySelectorAll('.cut-sel').forEach(sel => sel.onchange = () => changeCut(sel.dataset.k, sel.value));
+  box.querySelectorAll('[data-q]').forEach(b => b.onclick = () => changeQty(b.dataset.k, +b.dataset.q));
   const t = cartTotals();
   document.getElementById('cSub').textContent = fmt(t.sub);
   document.getElementById('cDel').textContent = t.delivery ? fmt(t.delivery) : 'Free';
   document.getElementById('cTotal').textContent = fmt(t.total);
 }
-window.removeItem = id => { delete cart[id]; saveCart(); };
+function removeItem(k) { delete cart[k]; saveCart(); }
+function changeQty(k, d) {
+  const l = cart[k]; if (!l) return;
+  const p = byId(l.id);
+  l.qty = +(l.qty + step(p) * d).toFixed(1);
+  if (l.qty < step(p)) delete cart[k];
+  saveCart();
+}
+function changeCut(k, newCut) {
+  const l = cart[k]; if (!l) return;
+  const nk = lineKey(l.id, newCut);
+  if (nk === k) return;
+  if (cart[nk]) cart[nk].qty = +(cart[nk].qty + l.qty).toFixed(1);
+  else cart[nk] = { id: l.id, cut: newCut, qty: l.qty };
+  delete cart[k];
+  saveCart();
+}
 const toggleCart = open => {
   document.getElementById('drawer').classList.toggle('open', open);
   document.getElementById('overlay').classList.toggle('open', open);
 };
 
-function sendOrder() {
-  const ids = Object.keys(cart).filter(id => byId(id));
-  if (!ids.length) { alert('Pehle koi product cart mein add karein.'); return; }
+/* ---------- Checkout: confirm screen (bank details) + WhatsApp ---------- */
+let pending = null;   // order waiting for confirmation
+
+function buildOrder() {
+  const ls = lines();
+  if (!ls.length) { alert('Pehle koi product cart mein add karein.'); return null; }
   const name = document.getElementById('cName').value.trim();
   const addr = document.getElementById('cAddr').value.trim();
-  if (!name || !addr) { alert('Barah-e-karam apna naam aur address likhein.'); return; }
-  const t = cartTotals();
+  const note = document.getElementById('cNote').value.trim();
+  const phone = document.getElementById('cPhone').value.trim();
+  if (!name || !addr) { alert('Barah-e-karam apna naam aur address likhein.'); return null; }
+  return { name, addr, phone, note, items: ls.map(([, l]) => ({ ...l })), totals: cartTotals() };
+}
+
+function orderMessage(o) {
   let msg = '*NEW ORDER – LAHORE MEAT*\n\n';
-  msg += `*Name:* ${name}\n*Address:* ${addr}\n\n*Order Details:*\n`;
-  ids.forEach((id, i) => {
-    const p = byId(id);
-    msg += `${i + 1}. ${p.name} – ${qtyLabel(p, cart[id])} × ${fmt(p.price)} = ${fmt(p.price * cart[id])}\n`;
+  msg += `*Name:* ${o.name}\n*Address:* ${o.addr}\n`;
+  if (o.phone) msg += `*Phone:* ${o.phone}\n`;
+  if (o.note) msg += `*Requirements / Cuts:* ${o.note}\n`;
+  msg += '\n*Order Details:*\n';
+  o.items.forEach((l, i) => {
+    const p = byId(l.id);
+    msg += `${i + 1}. ${p.name} – ${qtyLabel(p, l.qty)} × ${fmt(p.price)} = ${fmt(p.price * l.qty)}\n`;
+    if (l.cut) msg += `    Cut: ${l.cut}\n`;
   });
-  msg += `\nSubtotal: ${fmt(t.sub)}\nDelivery: ${t.delivery ? fmt(t.delivery) : 'Free'}\n*Total: ${fmt(t.total)}*\n\nShukriya!`;
-  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`, '_blank');
+  const t = o.totals;
+  msg += `\nSubtotal: ${fmt(t.sub)}\nDelivery: ${t.delivery ? fmt(t.delivery) : 'Free'}\n*Total: ${fmt(t.total)}*\n`;
+  msg += `\n*Payment (Bank Transfer):*\n${BANK.bank}\nAccount Title: ${BANK.title}\nAccount No: ${BANK.number}\n`;
+  msg += '\nPayment karne ke baad transaction receipt isi chat mein bhej dunga/dungi.\n\nShukriya!';
+  return msg;
+}
+
+function sendOrder() {
+  const o = buildOrder(); if (!o) return;
+  pending = o;
+  const t = o.totals;
+  document.getElementById('cmSummary').innerHTML =
+    `<p><b>${esc(o.name)}</b><br>${esc(o.addr)}${o.phone ? `<br>📞 ${esc(o.phone)}` : ''}</p>` +
+    o.items.map(l => { const p = byId(l.id); return `<div class="cm-line"><span>${p.name} – ${qtyLabel(p, l.qty)}${l.cut ? `<small>Cut: ${esc(l.cut)}</small>` : ''}</span><span>${fmt(p.price * l.qty)}</span></div>`; }).join('') +
+    (o.note ? `<p class="cm-note">📝 ${esc(o.note)}</p>` : '') +
+    `<div class="cm-line"><span>Delivery</span><span>${t.delivery ? fmt(t.delivery) : 'Free'}</span></div>` +
+    `<div class="cm-line cm-total"><span>Total Payable</span><span>${fmt(t.total)}</span></div>`;
+  document.getElementById('cmStatus').textContent = '';
+  document.getElementById('cmSend').style.display = '';
+  document.getElementById('confirmModal').classList.add('open');
+  toggleCart(false);
+}
+
+function confirmSend() {
+  if (!pending) return;
+  window.open(`https://wa.me/${WA}?text=${encodeURIComponent(orderMessage(pending))}`, '_blank');
+  document.getElementById('cmStatus').textContent = '✅ Order WhatsApp par bhej diya gaya hai. Ab upar diye gaye account mein payment karein aur transaction receipt WhatsApp par share karein.';
+  document.getElementById('cmSend').style.display = 'none';
+  cart = {}; saveCart();
+  ['cName', 'cAddr', 'cPhone', 'cNote'].forEach(id => { document.getElementById(id).value = ''; });
+  pending = null;
+}
+
+function copyText(text, btn) {
+  const done = () => { const o = btn.textContent; btn.textContent = '✓ Copied'; setTimeout(() => (btn.textContent = o), 1400); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  ta.remove();
 }
 
 /* ---------- Product cards ---------- */
@@ -114,6 +224,7 @@ function renderProducts() {
           <h3>${p.name}</h3>
           ${p.note ? `<small>${p.note}</small>` : ''}
           <div class="price">${fmt(p.price)} <span>/ ${isKg(p) ? '1 kg (1000 g)' : p.unit}</span></div>
+          ${hasCuts(p) ? `<label class="cut-lbl">Cut (kata):<select class="cut-sel" data-cut>${cutOptions('')}</select></label>` : ''}
           <div class="qty">
             <button type="button" data-d="-1" aria-label="Kam karein">−</button>
             <output>${isKg(p) ? '1 kg' : '1 ' + p.unit}</output>
@@ -130,9 +241,8 @@ function renderProducts() {
         out.textContent = qtyLabel(p, q).replace(/s$/, q > 1 ? 's' : '');
       });
       card.querySelector('[data-add]').onclick = e => {
-        cart[p.id] = +((cart[p.id] || 0) + q).toFixed(1);
-        saveCart();
-        toggleCart(true);
+        const cs = card.querySelector('[data-cut]');
+        addToCart(p.id, q, cs ? cs.value : '');
         e.target.textContent = '✓ Added';
         setTimeout(() => (e.target.textContent = 'Add to Cart'), 1200);
       };
@@ -179,21 +289,49 @@ function renderLayout() {
       <div><h4>Our Shops</h4><ul>${SHOPS.map(a => `<li>📍 ${a}</li>`).join('')}</ul></div>
     </div></div><div class="copy">© ${new Date().getFullYear()} Lahore Meat. All rights reserved.</div></footer>
     <a class="wa-float" href="https://wa.me/${WA}" target="_blank" rel="noopener" aria-label="WhatsApp">${icons.wa}</a>
+    <div class="add-popup" id="addPopup" role="status">
+      <div class="ap-text" id="apText"></div>
+      <div class="ap-btns"><button type="button" class="btn btn-line" id="apContinue">Continue Order</button><button type="button" class="btn btn-gold" id="apView">View Cart</button></div>
+    </div>
     <div class="overlay" id="overlay"></div>
-    <aside class="drawer" id="drawer"><header><h3>Aap ka Order</h3><div class="dh-actions"><a class="dh-wa" href="https://wa.me/${WA}" target="_blank" rel="noopener" aria-label="WhatsApp Chat">${icons.wa}</a><button id="cartClose" aria-label="Close">×</button></div></header>
+    <aside class="drawer" id="drawer"><header><h3>Aap ka Order</h3><button id="cartClose" aria-label="Close">×</button></header>
       <div class="cart-items" id="cartItems"></div>
       <div class="cart-foot">
-        <label class="fld" for="cName">Enter Full Name</label><input id="cName" type="text" placeholder="Enter Full Name" autocomplete="name"><label class="fld" for="cAddr">Enter Your Delivery Address</label><textarea id="cAddr" rows="2" placeholder="Enter Your Delivery Address" autocomplete="street-address"></textarea>
+        <input id="cName" placeholder="Enter Full Name">
+        <textarea id="cAddr" rows="2" placeholder="Enter Your Address"></textarea>
+        <input id="cPhone" type="tel" inputmode="tel" placeholder="Phone Number (optional)">
+        <textarea id="cNote" rows="3" placeholder="Optional: Aap ko kaisa cut chahiye ya koi aur requirement ho to yahan likhein"></textarea>
         <div class="row"><span>Subtotal</span><span id="cSub"></span></div>
-        <div class="row"><span>Delivery (Mutton/Beef/Chicken Rs. ${DELIVERY})</span><span id="cDel"></span></div>
+        <div class="row"><span>Delivery Charges</span><span id="cDel"></span></div>
         <div class="row total"><span>Total</span><span id="cTotal"></span></div>
-        <button class="btn btn-wa" id="sendOrder" type="button">Order on WhatsApp</button>
-      </div></aside>`;
+        <button class="btn btn-wa" id="sendOrder" type="button">Place Order</button>
+      </div></aside>
+    <div class="modal" id="confirmModal"><div class="modal-box">
+      <button class="modal-x" id="cmClose" type="button" aria-label="Close">×</button>
+      <h3>Order Confirm Karein</h3>
+      <div id="cmSummary"></div>
+      <div class="bank">
+        <h4>🏦 Payment Account Details</h4>
+        <div class="bank-row"><span>Account Title</span><b>${BANK.title}</b><button type="button" data-copy="${BANK.title}">Copy</button></div>
+        <div class="bank-row"><span>Account Number</span><b class="acc">${BANK.number}</b><button type="button" data-copy="${BANK.number}">Copy</button></div>
+        <div class="bank-row"><span>Bank</span><b>${BANK.bank}</b><button type="button" data-copy="${BANK.bank}">Copy</button></div>
+        <p class="bank-hint">Payment karne ke baad transaction receipt WhatsApp par share karein.</p>
+      </div>
+      <p id="cmStatus" class="cm-status"></p>
+      <button class="btn btn-wa" id="cmSend" type="button">Confirm &amp; Send Order on WhatsApp</button>
+    </div></div>`;
   document.getElementById('burger').onclick = () => document.getElementById('nav').classList.toggle('open');
-  document.getElementById('cartOpen').onclick = () => toggleCart(true);
+  document.getElementById('cartOpen').onclick = () => { hideAddPopup(); toggleCart(true); };
   document.getElementById('cartClose').onclick = () => toggleCart(false);
   document.getElementById('overlay').onclick = () => toggleCart(false);
   document.getElementById('sendOrder').onclick = sendOrder;
+  document.getElementById('cmSend').onclick = confirmSend;
+  document.getElementById('apContinue').onclick = hideAddPopup;
+  document.getElementById('apView').onclick = () => { hideAddPopup(); toggleCart(true); };
+  document.addEventListener('click', e => { if (!e.target.closest('#addPopup, [data-add]')) hideAddPopup(); });
+  document.getElementById('cmClose').onclick = () => document.getElementById('confirmModal').classList.remove('open');
+  document.getElementById('confirmModal').onclick = e => { if (e.target.id === 'confirmModal') e.currentTarget.classList.remove('open'); };
+  document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(b.dataset.copy, b));
 }
 
 document.addEventListener('DOMContentLoaded', () => { renderLayout(); renderProducts(); updateCart(); });
